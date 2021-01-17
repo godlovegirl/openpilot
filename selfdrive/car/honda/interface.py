@@ -166,7 +166,7 @@ class CarInterface(CarInterfaceBase):
     ret.lateralTuning.pid.kiBP, ret.lateralTuning.pid.kpBP = [[0.], [0.]]
     ret.lateralTuning.pid.kf = 0.00006  # conservative feed-forward
 
-    eps_modified = False
+    eps_modified = True
     for fw in car_fw:
       if fw.ecu == "eps" and b"," in fw.fwVersion:
         eps_modified = True
@@ -203,7 +203,7 @@ class CarInterface(CarInterfaceBase):
       ret.centerToFront = CivicParams.CENTER_TO_FRONT
       ret.steerRatio = 15.38  # 10.93 is end-to-end spec
       ret.lateralParams.torqueBP, ret.lateralParams.torqueV = [[0, 2564, 8000], [0, 2564, 3840]]
-      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[1.1, 0.25], [0.33, 0.075]] # my mod is 3.125x
+      ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.25], [0.075]] # my mod is 3.125x
       tire_stiffness_factor = 1.
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
