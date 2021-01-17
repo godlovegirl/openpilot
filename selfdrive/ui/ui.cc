@@ -2,25 +2,42 @@
 #include <cmath>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <signal.h>
 #include <unistd.h>
 #include <assert.h>
-#include <math.h>
-#include <poll.h>
-#include <sys/mman.h>
 
 #include "common/util.h"
 #include "common/swaglog.h"
 #include "common/visionimg.h"
-#include "common/utilpp.h"
 #include "ui.hpp"
 #include "paint.hpp"
+
 
 int write_param_float(float param, const char* param_name, bool persistent_param) {
   char s[16];
   int size = snprintf(s, sizeof(s), "%f", param);
   return Params(persistent_param).write_db_value(param_name, s, size < sizeof(s) ? size : sizeof(s));
 }
+
+
+static void ui_init_vision(UIState *s) {
+  // Invisible until we receive a calibration message.
+  s->scene.world_objects_visible = false;
+
+  for (int i = 0; i < s->vipc_client->num_buffers; i++) {
+    s->texture[i].reset(new EGLImageTexture(&s->vipc_client->buffers[i]));
+
+    glBindTexture(GL_TEXTURE_2D, s->texture[i]->frame_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    // BGR
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+  }
+  assert(glGetError() == GL_NO_ERROR);
+}
+
 
 void ui_init(UIState *s) {
   s->sm = new SubMaster({"modelV2", "controlsState", "uiLayoutState", "liveCalibration", "radarState", "thermal", "frame",
@@ -34,77 +51,58 @@ void ui_init(UIState *s) {
   assert(s->fb);
 
   ui_nvg_init(s);
+
+  s->last_frame = nullptr;
+  s->vipc_client_rear = new VisionIpcClient("camerad", VISION_STREAM_RGB_BACK, true);
+  s->vipc_client_front = new VisionIpcClient("camerad", VISION_STREAM_RGB_FRONT, true);
+  s->vipc_client = s->vipc_client_rear;
 }
 
-static void ui_init_vision(UIState *s) {
-  // Invisible until we receive a calibration message.
-  s->scene.world_objects_visible = false;
-
-  for (int i = 0; i < UI_BUF_COUNT; i++) {
-    if (s->khr[i] != 0) {
-      visionimg_destroy_gl(s->khr[i], s->priv_hnds[i]);
-      glDeleteTextures(1, &s->frame_texs[i]);
-    }
-
-    VisionImg img = {
-      .fd = s->stream.bufs[i].fd,
-      .format = VISIONIMG_FORMAT_RGB24,
-      .width = s->stream.bufs_info.width,
-      .height = s->stream.bufs_info.height,
-      .stride = s->stream.bufs_info.stride,
-      .bpp = 3,
-      .size = s->stream.bufs_info.buf_len,
-    };
-#ifndef QCOM
-    s->priv_hnds[i] = s->stream.bufs[i].addr;
-#endif
-    s->frame_texs[i] = visionimg_to_gl(&img, &s->khr[i], &s->priv_hnds[i]);
-
-    glBindTexture(GL_TEXTURE_2D, s->frame_texs[i]);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-    // BGR
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_BLUE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_GREEN);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+template <class T>
+static void update_line_data(const UIState *s, const cereal::ModelDataV2::XYZTData::Reader &line,
+                             float y_off, float z_off, T *pvd, float max_distance) {
+  const auto line_x = line.getX(), line_y = line.getY(), line_z = line.getZ();
+  int max_idx = -1;
+  vertex_data *v = &pvd->v[0];
+  const float margin = 500.0f;
+  for (int i = 0; ((i < TRAJECTORY_SIZE) and (line_x[i] < fmax(MIN_DRAW_DISTANCE, max_distance))); i++) {
+    v += car_space_to_full_frame(s, line_x[i], -line_y[i] - y_off, -line_z[i] + z_off, v, margin);
+    max_idx = i;
   }
-  assert(glGetError() == GL_NO_ERROR);
+  for (int i = max_idx; i >= 0; i--) {
+    v += car_space_to_full_frame(s, line_x[i], -line_y[i] + y_off, -line_z[i] + z_off, v, margin);
+  }
+  pvd->cnt = v - pvd->v;
+  assert(pvd->cnt < std::size(pvd->v));
 }
 
-void ui_update_vision(UIState *s) {
-
-  if (!s->vision_connected && s->started) {
-    const VisionStreamType type = s->scene.frontview ? VISION_STREAM_RGB_FRONT : VISION_STREAM_RGB_BACK;
-    int err = visionstream_init(&s->stream, type, true, nullptr);
-    if (err == 0) {
-      ui_init_vision(s);
-      s->vision_connected = true;
-    }
+static void update_model(UIState *s, const cereal::ModelDataV2::Reader &model) {
+  UIScene &scene = s->scene;
+  const float max_distance = fmin(model.getPosition().getX()[TRAJECTORY_SIZE - 1], MAX_DRAW_DISTANCE);
+  // update lane lines
+  const auto lane_lines = model.getLaneLines();
+  const auto lane_line_probs = model.getLaneLineProbs();
+  for (int i = 0; i < std::size(scene.lane_line_vertices); i++) {
+    scene.lane_line_probs[i] = lane_line_probs[i];
+    update_line_data(s, lane_lines[i], 0.025 * scene.lane_line_probs[i], 1.22, &scene.lane_line_vertices[i], max_distance);
   }
 
-  if (s->vision_connected) {
-    if (!s->started) goto destroy;
-
-    // poll for a new frame
-    struct pollfd fds[1] = {{
-      .fd = s->stream.ipc_fd,
-      .events = POLLOUT,
-    }};
-    int ret = poll(fds, 1, 100);
-    if (ret > 0) {
-      if (!visionstream_get(&s->stream, nullptr)) goto destroy;
-    }
+  // update road edges
+  const auto road_edges = model.getRoadEdges();
+  const auto road_edge_stds = model.getRoadEdgeStds();
+  for (int i = 0; i < std::size(scene.road_edge_vertices); i++) {
+    scene.road_edge_stds[i] = road_edge_stds[i];
+    update_line_data(s, road_edges[i], 0.025, 1.22, &scene.road_edge_vertices[i], max_distance);
   }
 
-  return;
-
-destroy:
-  visionstream_destroy(&s->stream);
-  s->vision_connected = false;
+  // update path
+  const float lead_d = scene.lead_data[0].getStatus() ? scene.lead_data[0].getDRel() * 2. : MAX_DRAW_DISTANCE;
+  float path_length = (lead_d > 0.) ? lead_d - fmin(lead_d * 0.35, 10.) : MAX_DRAW_DISTANCE;
+  path_length = fmin(path_length, max_distance);
+  update_line_data(s, model.getPosition(), 0.5, 0, &scene.track_vertices, path_length);
 }
 
-void update_sockets(UIState *s) {
+static void update_sockets(UIState *s) {
 
   UIScene &scene = s->scene;
   SubMaster &sm = *(s->sm);
@@ -130,6 +128,7 @@ void update_sockets(UIState *s) {
     scene.alert_text2 = scene.controls_state.getAlertText2();
     scene.alert_size = scene.controls_state.getAlertSize();
     scene.alert_type = scene.controls_state.getAlertType();
+    scene.alert_blinking_rate = scene.controls_state.getAlertBlinkingRate();
     auto alertStatus = scene.controls_state.getAlertStatus();
     if (alertStatus == cereal::ControlsState::AlertStatus::USER_PROMPT) {
       s->status = STATUS_WARNING;
@@ -137,24 +136,6 @@ void update_sockets(UIState *s) {
       s->status = STATUS_ALERT;
     } else {
       s->status = scene.controls_state.getEnabled() ? STATUS_ENGAGED : STATUS_DISENGAGED;
-    }
-
-    float alert_blinkingrate = scene.controls_state.getAlertBlinkingRate();
-    if (alert_blinkingrate > 0.) {
-      if (s->alert_blinked) {
-        if (s->alert_blinking_alpha > 0.0 && s->alert_blinking_alpha < 1.0) {
-          s->alert_blinking_alpha += (0.05*alert_blinkingrate);
-        } else {
-          s->alert_blinked = false;
-        }
-      } else {
-        if (s->alert_blinking_alpha > 0.25) {
-          s->alert_blinking_alpha -= (0.05*alert_blinkingrate);
-        } else {
-          s->alert_blinking_alpha += 0.25;
-          s->alert_blinked = true;
-        }
-      }
     }
   }
   if (sm.updated("radarState")) {
@@ -170,28 +151,12 @@ void update_sockets(UIState *s) {
     }
   }
   if (sm.updated("modelV2")) {
-    scene.model = sm["modelV2"].getModelV2();
-    scene.max_distance = fmin(scene.model.getPosition().getX()[TRAJECTORY_SIZE - 1], MAX_DRAW_DISTANCE);
-    for (int ll_idx = 0; ll_idx < 4; ll_idx++) {
-      if (scene.model.getLaneLineProbs().size() > ll_idx) {
-        scene.lane_line_probs[ll_idx] = scene.model.getLaneLineProbs()[ll_idx];
-      } else {
-        scene.lane_line_probs[ll_idx] = 0.0;
-      }
-    }
-
-    for (int re_idx = 0; re_idx < 2; re_idx++) {
-      if (scene.model.getRoadEdgeStds().size() > re_idx) {
-        scene.road_edge_stds[re_idx] = scene.model.getRoadEdgeStds()[re_idx];
-      } else {
-        scene.road_edge_stds[re_idx] = 1.0;
-      }
-    }
+    update_model(s, sm["modelV2"].getModelV2());
   }
   if (sm.updated("uiLayoutState")) {
     auto data = sm["uiLayoutState"].getUiLayoutState();
     s->active_app = data.getActiveApp();
-    scene.uilayout_sidebarcollapsed = data.getSidebarCollapsed();
+    scene.sidebar_collapsed = data.getSidebarCollapsed();
   }
   if (sm.updated("thermal")) {
     scene.thermal = sm["thermal"].getThermal();
@@ -237,7 +202,7 @@ void update_sockets(UIState *s) {
   s->started = scene.thermal.getStarted() || scene.frontview;
 }
 
-static void ui_read_params(UIState *s) {
+static void update_params(UIState *s) {
   const uint64_t frame = s->sm->frame;
 
   if (frame % (5*UI_FREQ) == 0) {
@@ -251,29 +216,45 @@ static void ui_read_params(UIState *s) {
   }
 }
 
+static void update_vision(UIState *s) {
+  if (!s->vipc_client->connected && s->started) {
+    s->vipc_client = s->scene.frontview ? s->vipc_client_front : s->vipc_client_rear;
+
+    if (s->vipc_client->connect(false)){
+      ui_init_vision(s);
+    }
+  }
+
+  if (s->vipc_client->connected){
+    VisionBuf * buf = s->vipc_client->recv();
+    if (buf != nullptr){
+      s->last_frame = buf;
+    }
+  }
+}
+
 void ui_update(UIState *s) {
-  ui_read_params(s);
+  update_params(s);
   update_sockets(s);
-  ui_update_vision(s);
+  update_vision(s);
 
   // Handle onroad/offroad transition
   if (!s->started && s->status != STATUS_OFFROAD) {
     s->status = STATUS_OFFROAD;
     s->active_app = cereal::UiLayoutState::App::HOME;
-    s->scene.uilayout_sidebarcollapsed = false;
+    s->scene.sidebar_collapsed = false;
     s->sound->stop();
+    s->vipc_client->connected = false;
   } else if (s->started && s->status == STATUS_OFFROAD) {
     s->status = STATUS_DISENGAGED;
     s->started_frame = s->sm->frame;
 
     s->active_app = cereal::UiLayoutState::App::NONE;
-    s->scene.uilayout_sidebarcollapsed = true;
-    s->alert_blinked = false;
-    s->alert_blinking_alpha = 1.0;
+    s->scene.sidebar_collapsed = true;
     s->scene.alert_size = cereal::ControlsState::AlertSize::NONE;
   }
 
-  // Handle controls/fcamera timeout
+  // Handle controls timeout
   if (s->started && !s->scene.frontview && ((s->sm)->frame - s->started_frame) > 10*UI_FREQ) {
     if ((s->sm)->rcv_frame("controlsState") < s->started_frame) {
       // car is started, but controlsState hasn't been seen at all
@@ -282,8 +263,7 @@ void ui_update(UIState *s) {
       s->scene.alert_size = cereal::ControlsState::AlertSize::MID;
     } else if (((s->sm)->frame - (s->sm)->rcv_frame("controlsState")) > 5*UI_FREQ) {
       // car is started, but controls is lagging or died
-      if (s->scene.alert_text2 != "Controls Unresponsive" &&
-          s->scene.alert_text1 != "Camera Malfunction") {
+      if (s->scene.alert_text2 != "Controls Unresponsive") {
         s->sound->play(AudibleAlert::CHIME_WARNING_REPEAT);
         LOGE("Controls unresponsive");
       }
@@ -292,18 +272,6 @@ void ui_update(UIState *s) {
       s->scene.alert_text2 = "Controls Unresponsive";
       s->scene.alert_size = cereal::ControlsState::AlertSize::FULL;
       s->status = STATUS_ALERT;
-    }
-
-    const uint64_t frame_pkt = (s->sm)->rcv_frame("frame");
-    const uint64_t frame_delayed = (s->sm)->frame - frame_pkt;
-    const uint64_t since_started = (s->sm)->frame - s->started_frame;
-    if ((frame_pkt > s->started_frame || since_started > 15*UI_FREQ) && frame_delayed > 5*UI_FREQ) {
-      // controls is fine, but rear camera is lagging or died
-      s->scene.alert_text1 = "Camera Malfunction";
-      s->scene.alert_text2 = "Contact Support";
-      s->scene.alert_size = cereal::ControlsState::AlertSize::FULL;
-      s->status = STATUS_DISENGAGED;
-      s->sound->stop();
     }
   }
 }
