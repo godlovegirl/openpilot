@@ -141,7 +141,7 @@ class CarInterface(CarInterfaceBase):
       useTeslaRadar = params.get("TeslaRadarActivate", encoding='utf8') == "1"
       ret.openpilotLongitudinalControl = useVisionRadar or useTeslaRadar
       ret.radarOffCan = not useTeslaRadar
-      ret.radarTimeStep = 0.06 if useTeslaRadar else 0.05
+      ret.radarTimeStep = 0.05 #20Hz
       ret.enableCruise = not ret.openpilotLongitudinalControl
       ret.communityFeature = ret.openpilotLongitudinalControl
       if ret.openpilotLongitudinalControl:
