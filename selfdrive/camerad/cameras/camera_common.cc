@@ -205,6 +205,7 @@ void CameraBuf::queue(size_t buf_idx){
 void fill_frame_data(cereal::FrameData::Builder &framed, const FrameMetadata &frame_data, uint32_t cnt) {
   framed.setFrameId(frame_data.frame_id);
   framed.setTimestampEof(frame_data.timestamp_eof);
+  framed.setTimestampSof(frame_data.timestamp_sof);
   framed.setFrameLength(frame_data.frame_length);
   framed.setIntegLines(frame_data.integ_lines);
   framed.setGlobalGain(frame_data.global_gain);
@@ -339,7 +340,7 @@ void set_exposure_target(CameraState *c, const uint8_t *pix_ptr, int x_start, in
 extern ExitHandler do_exit;
 
 void *processing_thread(MultiCameraState *cameras, const char *tname,
-                          CameraState *cs, process_thread_cb callback) {
+                        CameraState *cs, process_thread_cb callback) {
   set_thread_name(tname);
 
   for (int cnt = 0; !do_exit; cnt++) {

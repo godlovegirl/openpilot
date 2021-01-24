@@ -110,7 +110,7 @@ def build():
       r = scons.stderr.read().split(b'\n')
       compile_output += r
 
-      if retry:
+      if retry and (not dirty):
         if not os.getenv("CI"):
           print("scons build failed, cleaning in")
           for i in range(3, -1, -1):
@@ -146,7 +146,6 @@ import cereal.messaging as messaging
 
 from common.params import Params
 from selfdrive.registration import register
-from selfdrive.loggerd.config import ROOT
 from selfdrive.launcher import launcher
 
 
@@ -398,6 +397,8 @@ def send_managed_process_signal(name, sig):
 # ****************** run loop ******************
 
 def manager_init():
+  os.umask(0)  # Make sure we can create files with 777 permissions
+
   # Create folders needed for msgq
   try:
     os.mkdir("/dev/shm")
@@ -417,15 +418,10 @@ def manager_init():
   if not dirty:
     os.environ['CLEAN'] = '1'
 
-  cloudlog.bind_global(dongle_id=dongle_id, version=version, dirty=dirty, is_eon=True)
+  cloudlog.bind_global(dongle_id=dongle_id, version=version, dirty=dirty,
+                       device=HARDWARE.get_device_type())
   crash.bind_user(id=dongle_id)
-  crash.bind_extra(version=version, dirty=dirty, is_eon=True)
-
-  os.umask(0)
-  try:
-    os.mkdir(ROOT, 0o777)
-  except OSError:
-    pass
+  crash.bind_extra(version=version, dirty=dirty, device=HARDWARE.get_device_type())
 
   # ensure shared libraries are readable by apks
   if EON:
@@ -440,7 +436,7 @@ def manager_thread():
   cloudlog.info({"environ": os.environ})
 
   # save boot log
-  subprocess.call(["./loggerd", "--bootlog"], cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))
+  subprocess.call("./bootlog", cwd=os.path.join(BASEDIR, "selfdrive/loggerd"))
 
   # start daemon processes
   for p in daemon_processes:
