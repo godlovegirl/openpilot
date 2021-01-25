@@ -207,8 +207,8 @@ class CarInterface(CarInterfaceBase):
       tire_stiffness_factor = 1.
       ret.longitudinalTuning.kpBP = [0., 5., 35.] # 0, 11, 78 mph
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
-      ret.longitudinalTuning.kiBP = [0., 5., 35.] # 0, 11, 78 mph 
-      ret.longitudinalTuning.kiV = [0.18, 0.13, 0.12]
+      ret.longitudinalTuning.kiBP = [0., 35.] # 0, 78 mph 
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
     elif candidate in (CAR.ACCORD, CAR.ACCORD_15, CAR.ACCORDH):
       stop_and_go = True
@@ -441,9 +441,9 @@ class CarInterface(CarInterfaceBase):
 
     if candidate in HONDA_BOSCH:
       ret.gasMaxBP = [0.0, 5., 10., 22., 35.] # m/s #0, 11, 22, 49, 78 mph
-      ret.gasMaxV = [0.3, 0.2, 0.19, 0.17, 0.16] #lessen gasMax as speed increases
+      ret.gasMaxV = [0.3, 0.2, 0.18, 0.17, 0.16] #lessen gasMax as speed increases
       ret.brakeMaxBP = [5., 10., 22., 35.] #[5., 20.]  # m/s
-      ret.brakeMaxV = [1., 0.96, 0.8, 0.75]  #[1., 0.8]   # max brake allowed
+      ret.brakeMaxV = [1., 0.975, 0.8, 0.75]  #[1., 0.8]   # max brake allowed
     else:
       ret.gasMaxBP = [0.]  # m/s
       ret.gasMaxV = [0.6] if ret.enableGasInterceptor else [0.]  # max gas allowed
