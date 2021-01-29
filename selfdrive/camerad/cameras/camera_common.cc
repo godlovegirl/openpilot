@@ -121,18 +121,12 @@ CameraBuf::~CameraBuf() {
 }
 
 bool CameraBuf::acquire() {
-  {
-    std::unique_lock<std::mutex> lk(frame_queue_mutex);
-    bool got_frame = frame_queue_cv.wait_for(lk, std::chrono::milliseconds(1), [this]{ return !frame_queue.empty(); });
-    if (!got_frame) return false;
-
-    cur_buf_idx = frame_queue.front();
-    frame_queue.pop();
-  }
+  if (!safe_queue.try_pop(cur_buf_idx, 1)) return false;
 
   const FrameMetadata &frame_data = camera_bufs_metadata[cur_buf_idx];
   if (frame_data.frame_id == -1) {
     LOGE("no frame data? wtf");
+    release();
     return false;
   }
 
@@ -192,17 +186,13 @@ void CameraBuf::release() {
   }
 }
 
-void CameraBuf::queue(size_t buf_idx){
-  {
-    std::lock_guard<std::mutex> lk(frame_queue_mutex);
-    frame_queue.push(buf_idx);
-  }
-  frame_queue_cv.notify_one();
+void CameraBuf::queue(size_t buf_idx) {
+  safe_queue.push(buf_idx);
 }
 
 // common functions
 
-void fill_frame_data(cereal::FrameData::Builder &framed, const FrameMetadata &frame_data, uint32_t cnt) {
+void fill_frame_data(cereal::FrameData::Builder &framed, const FrameMetadata &frame_data) {
   framed.setFrameId(frame_data.frame_id);
   framed.setTimestampEof(frame_data.timestamp_eof);
   framed.setTimestampSof(frame_data.timestamp_sof);
@@ -216,7 +206,7 @@ void fill_frame_data(cereal::FrameData::Builder &framed, const FrameMetadata &fr
   framed.setGainFrac(frame_data.gain_frac);
 }
 
-void fill_frame_image(cereal::FrameData::Builder &framed, const CameraBuf *b) {
+kj::Array<uint8_t> get_frame_image(const CameraBuf *b) {
   assert(b->cur_rgb_buf);
   const uint8_t *dat = (const uint8_t *)b->cur_rgb_buf->addr;
   int scale = env_scale;
@@ -225,19 +215,18 @@ void fill_frame_image(cereal::FrameData::Builder &framed, const CameraBuf *b) {
   if (env_ymax != -1) y_max = env_ymax;
   int new_width = (x_max - x_min + 1) / scale;
   int new_height = (y_max - y_min + 1) / scale;
-  uint8_t *resized_dat = new uint8_t[new_width*new_height*3];
-
+  kj::Array<uint8_t> frame_image = kj::heapArray<uint8_t>(new_width*new_height*3);
+  uint8_t *resized_dat = frame_image.begin();
   int goff = x_min*3 + y_min*b->rgb_stride;
   for (int r=0;r<new_height;r++) {
     for (int c=0;c<new_width;c++) {
       memcpy(&resized_dat[(r*new_width+c)*3], &dat[goff+r*b->rgb_stride*scale+c*3*scale], 3*sizeof(uint8_t));
     }
   }
-  framed.setImage(kj::arrayPtr((const uint8_t*)resized_dat, (size_t)new_width*new_height*3));
-  delete[] resized_dat;
+  return kj::mv(frame_image);
 }
 
-static void create_thumbnail(MultiCameraState *s, const CameraBuf *b) {
+static void publish_thumbnail(PubMaster *pm, const CameraBuf *b) {
   uint8_t* thumbnail_buffer = NULL;
   unsigned long thumbnail_len = 0;
 
@@ -295,9 +284,7 @@ static void create_thumbnail(MultiCameraState *s, const CameraBuf *b) {
   thumbnaild.setTimestampEof(b->cur_frame_data.timestamp_eof);
   thumbnaild.setThumbnail(kj::arrayPtr((const uint8_t*)thumbnail_buffer, thumbnail_len));
 
-  if (s->pm != NULL) {
-    s->pm->send("thumbnail", msg);
-  }
+  pm->send("thumbnail", msg);
   free(thumbnail_buffer);
 }
 
@@ -348,9 +335,9 @@ void *processing_thread(MultiCameraState *cameras, const char *tname,
 
     callback(cameras, cs, cnt);
 
-    if (cs == &(cameras->rear) && cnt % 100 == 3) {
+    if (cs == &(cameras->rear) && cameras->pm && cnt % 100 == 3) {
       // this takes 10ms???
-      create_thumbnail(cameras, &(cs->buf));
+      publish_thumbnail(cameras->pm, &(cs->buf));
     }
     cs->buf.release();
   }
@@ -410,9 +397,9 @@ void common_camera_process_front(SubMaster *sm, PubMaster *pm, CameraState *c, i
   MessageBuilder msg;
   auto framed = msg.initEvent().initFrontFrame();
   framed.setFrameType(cereal::FrameData::FrameType::FRONT);
-  fill_frame_data(framed, b->cur_frame_data, cnt);
+  fill_frame_data(framed, b->cur_frame_data);
   if (env_send_front) {
-    fill_frame_image(framed, b);
+    framed.setImage(get_frame_image(b));
   }
   pm->send("frontFrame", msg);
 }
