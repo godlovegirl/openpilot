@@ -17,7 +17,7 @@ CAR_BATTERY_CAPACITY_uWh = 30e6
 CAR_CHARGING_RATE_W = 45
 
 VBATT_PAUSE_CHARGING = 11.0
-MAX_TIME_OFFROAD_S = 2*3600
+MAX_TIME_OFFROAD_S = 24*3600 #24 hr shutoff
 
 class PowerMonitoring:
   def __init__(self):
