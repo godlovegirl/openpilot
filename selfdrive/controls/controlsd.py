@@ -7,6 +7,7 @@ from common.profiler import Profiler
 from common.params import Params, put_nonblocking
 import cereal.messaging as messaging
 from selfdrive.config import Conversions as CV
+from selfdrive.swaglog import cloudlog
 from selfdrive.boardd.boardd import can_list_to_can_capnp
 from selfdrive.car.car_helpers import get_car, get_startup_event, get_one_can
 # TODO: import this only if we don't have tesla radar
@@ -22,7 +23,7 @@ from selfdrive.controls.lib.alertmanager import AlertManager
 from selfdrive.controls.lib.vehicle_model import VehicleModel
 from selfdrive.controls.lib.planner import LON_MPC_STEP
 from selfdrive.locationd.calibrationd import Calibration
-from selfdrive.hardware import HARDWARE
+from selfdrive.hardware import HARDWARE, TICI
 
 LDW_MIN_SPEED = 31 * CV.MPH_TO_MS
 LANE_DEPARTURE_THRESHOLD = 0.1
@@ -128,6 +129,7 @@ class Controls:
     self.last_functional_fan_frame = 0
     self.events_prev = []
     self.current_alert_types = [ET.PERMANENT]
+    self.logged_comm_issue = False
 
     self.sm['liveCalibration'].calStatus = Calibration.CALIBRATED
     self.sm['thermal'].freeSpace = 1.
@@ -213,11 +215,18 @@ class Controls:
     if (self.sm['health'].safetyModel != self.CP.safetyModel and self.sm.frame > 2 / DT_CTRL) or \
       self.mismatch_counter >= 200:
       self.events.add(EventName.controlsMismatch)
+
     if not self.sm.alive['plan'] and self.sm.alive['pathPlan']:
       # only plan not being received: radar not communicating
       self.events.add(EventName.radarCommIssue)
     elif not self.sm.all_alive_and_valid():
       self.events.add(EventName.commIssue)
+      if not self.logged_comm_issue:
+        cloudlog.error(f"commIssue - valid: {self.sm.valid} - alive: {self.sm.alive}")
+        self.logged_comm_issue = True
+    else:
+      self.logged_comm_issue = False
+
     if not self.sm['pathPlan'].mpcSolutionValid:
       self.events.add(EventName.plannerError)
     if not self.sm['liveLocationKalman'].sensorsOK and not NOSENSOR:
@@ -243,7 +252,7 @@ class Controls:
       if not NOSENSOR:
         if not self.sm.alive['ubloxRaw'] and (self.sm.frame > 10. / DT_CTRL):
           self.events.add(EventName.gpsMalfunction)
-        elif not self.sm['liveLocationKalman'].gpsOK and (self.distance_traveled > 1000):
+        elif not self.sm['liveLocationKalman'].gpsOK and (self.distance_traveled > 1000) and not TICI:
           # Not show in first 1 km to allow for driving out of garage. This event shows after 5 minutes
           self.events.add(EventName.noGps)
       if not self.sm.all_alive(['frame', 'frontFrame']) and (self.sm.frame > 5 / DT_CTRL):

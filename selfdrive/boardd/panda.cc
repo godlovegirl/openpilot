@@ -28,12 +28,8 @@ void panda_set_power(bool power){
 }
 
 Panda::Panda(){
-  int err;
-
-  if (err != 0) { goto fail; }
-
   // init libusb
-  err = libusb_init(&ctx);
+  int err = libusb_init(&ctx);
   if (err != 0) { goto fail; }
 
 #if LIBUSB_API_VERSION >= 0x01000106
@@ -117,6 +113,10 @@ int Panda::usb_write(uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigne
 int Panda::usb_read(uint8_t bRequest, uint16_t wValue, uint16_t wIndex, unsigned char *data, uint16_t wLength, unsigned int timeout) {
   int err;
   const uint8_t bmRequestType = LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE;
+
+  if (!connected){
+    return LIBUSB_ERROR_NO_DEVICE;
+  }
 
   std::lock_guard lk(usb_lock);
   do {

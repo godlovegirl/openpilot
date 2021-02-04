@@ -97,8 +97,8 @@ class LongitudinalMpc():
     TR = 1.6  # todo: your custom logic to decide TR in seconds here
     # cost = 0.1  # todo: from MPC_COST_LONG.DISTANCE, this needs to change with distance
     # self.libmpc.change_tr(MPC_COST_LONG.TTC, cost, MPC_COST_LONG.ACCELERATION, MPC_COST_LONG.JERK)  # todo: so update with this line every time you change TR
-    n_its = self.libmpc.run_mpc(self.cur_state, self.mpc_solution, self.a_lead_tau, a_lead, TR)
-    duration = int((sec_since_boot() - t) * 1e9)
+    self.n_its = self.libmpc.run_mpc(self.cur_state, self.mpc_solution, self.a_lead_tau, a_lead, TR)
+    self.duration = int((sec_since_boot() - t) * 1e9)
 
     if LOG_MPC:
       self.send_mpc_solution(pm, n_its, duration)

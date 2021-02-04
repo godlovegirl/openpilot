@@ -17,7 +17,7 @@ LaneChangeDirection = log.PathPlan.LaneChangeDirection
 
 LOG_MPC = os.environ.get('LOG_MPC', False)
 
-LANE_CHANGE_SPEED_MIN = 15 * CV.MPH_TO_MS
+LANE_CHANGE_SPEED_MIN = 45 * CV.MPH_TO_MS
 LANE_CHANGE_TIME_MAX = 10.
 
 DESIRES = {
@@ -190,6 +190,14 @@ class PathPlanner():
     delay = CP.steerActuatorDelay + .2
     next_tire_angle = interp(DT_MDL + delay, self.t_idxs[:MPC_N+1], self.mpc_solution.tire_angle)
     next_tire_angle_rate = self.mpc_solution.tire_angle_rate[0]
+
+    # TODO This gets around the fact that MPC can plan to turn and turn back in the
+    # time between now and delay, need better abstraction between planner and controls
+    plan_ahead_idx = sum(self.t_idxs < delay)
+    if next_tire_angle_rate > 0:
+      next_tire_angle = max(list(self.mpc_solution.tire_angle)[:plan_ahead_idx] + [next_tire_angle])
+    else:
+      next_tire_angle = min(list(self.mpc_solution.tire_angle)[:plan_ahead_idx] + [next_tire_angle])
 
     # reset to current steer angle if not active or overriding
     if active:

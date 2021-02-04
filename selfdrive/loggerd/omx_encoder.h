@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
-
-#include <pthread.h>
 #include <vector>
 #include <OMX_Component.h>
 
@@ -38,7 +36,6 @@ private:
   void wait_for_state(OMX_STATETYPE state);
   static void handle_out_buf(OmxEncoder *e, OMX_BUFFERHEADERTYPE *out_buf);
 
-  pthread_mutex_t lock;
   int width, height, fps;
   char vid_path[1024];
   char lock_path[1024];
@@ -54,8 +51,8 @@ private:
   uint8_t *codec_config = NULL;
   bool wrote_codec_config;
 
-  pthread_mutex_t state_lock;
-  pthread_cond_t state_cv;
+  std::mutex state_lock;
+  std::condition_variable state_cv;
   OMX_STATETYPE state = OMX_StateLoaded;
 
   OMX_HANDLETYPE handle;
