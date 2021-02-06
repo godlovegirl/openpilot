@@ -61,8 +61,6 @@ const int UI_FREQ = 20;   // Hz
 const int MODEL_PATH_MAX_VERTICES_CNT = TRAJECTORY_SIZE*2;
 const int TRACK_POINTS_MAX_CNT = TRAJECTORY_SIZE*4;
 
-const int SET_SPEED_NA = 255;
-
 typedef enum NetStatus {
   NET_CONNECTED,
   NET_DISCONNECTED,
@@ -117,14 +115,19 @@ typedef struct UIScene {
   float alert_blinking_rate;
   cereal::ControlsState::AlertSize alert_size;
 
-  cereal::HealthData::HwType hwType;
+  cereal::HealthData::PandaType pandaType;
   NetStatus athenaStatus;
 
   cereal::ThermalData::Reader thermal;
   cereal::RadarState::LeadData::Reader lead_data[2];
+  cereal::CarState::Reader car_state;
   cereal::ControlsState::Reader controls_state;
   cereal::DriverState::Reader driver_state;
-  cereal::DMonitoringState::Reader dmonitoring_state;
+  cereal::DriverMonitoringState::Reader dmonitoring_state;
+
+  // gps
+  int satelliteCount;
+  int cnoAvg;
 
   // modelV2
   float lane_line_probs[4];
