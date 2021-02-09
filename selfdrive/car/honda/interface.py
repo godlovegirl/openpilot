@@ -446,7 +446,7 @@ class CarInterface(CarInterfaceBase):
 
     if candidate in HONDA_BOSCH:
       ret.gasMaxBP = [0.0, 5., 10., 22., 35.] # m/s #0, 11, 22, 49, 78 mph
-      ret.gasMaxV = [0.3, 0.2, 0.18, 0.17, 0.16] #lessen gasMax as speed increases
+      ret.gasMaxV = [0.3, 0.2, 0.12, 0.11, 0.1] #lessen gasMax as speed increases
       ret.brakeMaxBP = [5., 10., 22., 35.] #[5., 20.]  # m/s
       ret.brakeMaxV = [1., 0.975, 0.8, 0.75]  #[1., 0.8]   # max brake allowed
     else:
