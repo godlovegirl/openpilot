@@ -208,7 +208,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kiV = [0.2, 0.12]
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
     elif candidate in (CAR.ACCORD, CAR.ACCORD_15, CAR.ACCORDH):
       stop_and_go = True
@@ -223,7 +223,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kiV = [0.2, 0.12]
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
       if eps_modified:
         ret.lateralTuning.pid.kpV, ret.lateralTuning.pid.kiV = [[0.3], [0.09]]
@@ -278,7 +278,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kiV = [0.2, 0.12]
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
     elif candidate == CAR.CRV_HYBRID:
       stop_and_go = True
@@ -297,7 +297,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kiV = [0.2, 0.12]
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
     elif candidate == CAR.FIT:
       stop_and_go = False
@@ -424,7 +424,7 @@ class CarInterface(CarInterfaceBase):
       ret.longitudinalTuning.kpBP = [0., 5., 35.]
       ret.longitudinalTuning.kpV = [1.2, 0.8, 0.5]
       ret.longitudinalTuning.kiBP = [0., 35.]
-      ret.longitudinalTuning.kiV = [0.2, 0.12]
+      ret.longitudinalTuning.kiV = [0.18, 0.12]
 
     else:
       raise ValueError("unsupported car %s" % candidate)
@@ -445,7 +445,7 @@ class CarInterface(CarInterfaceBase):
 
     if candidate in HONDA_BOSCH:
       ret.gasMaxBP = [0.0, 5., 10., 22., 35.] # m/s #0, 11, 22, 49, 78 mph
-      ret.gasMaxV = [0.28, 0.2, 0.16, 0.12, 0.1] #lessen gasMax as speed increases
+      ret.gasMaxV = [0.33, 0.25, 0.20, 0.17, 0.15] #lessen gasMax as speed increases
       ret.brakeMaxBP = [0.]  # m/s
       ret.brakeMaxV = [1.]   # max brake allowed
     else:
