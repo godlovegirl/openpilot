@@ -92,6 +92,7 @@ class CarController():
     self.stopped_frame = 0
     self.last_wheeltick = 0
     self.last_wheeltick_ct = 0
+    self.prev_act = 0.
 
     self.params = CarControllerParams(CP)
 
@@ -125,6 +126,7 @@ class CarController():
         hud_car = 1
     else:
       hud_car = 0
+      self.prev_act = actuators.steer
 
     fcw_display, steer_required, acc_alert = process_hud_alert(hud_alert)
 
@@ -132,6 +134,13 @@ class CarController():
                   hud_lanes, fcw_display, acc_alert, steer_required)
 
     # **** process the car messages ****
+    percent_limit = 0.02
+    if actuators.steer < (self.prev_act - percent_limit):
+      self.prev_act = self.prev_act - percent_limit
+    elif actuators.steer > (self.prev_act + percent_limit):
+      self.prev_act = self.prev_act + percent_limit
+    else:
+      self.prev_act = actuators.steer
 
     if CS.CP.carFingerprint in HONDA_BOSCH:
       stopped = 0
@@ -158,7 +167,7 @@ class CarController():
       apply_gas = interp(accel, BOSCH_GAS_LOOKUP_BP, BOSCH_GAS_LOOKUP_V)
 
     # steer torque is converted back to CAN reference (positive when steering right)
-    apply_steer = int(interp(-actuators.steer * P.STEER_MAX, P.STEER_LOOKUP_BP, P.STEER_LOOKUP_V))
+    apply_steer = int(interp(-self.prev_act * P.STEER_MAX, P.STEER_LOOKUP_BP, P.STEER_LOOKUP_V))
 
     lkas_active = enabled and not CS.steer_not_allowed
 
