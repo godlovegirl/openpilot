@@ -51,6 +51,25 @@ QWidget * toggles_panel() {
                                             "../assets/offroad/icon_shell.png"
                                             ));
   toggles_list->addWidget(horizontal_line());
+  toggles_list->addWidget(new ParamsToggle("VisionRadarToggle",
+                                           "Enable Vision Radar",
+                                           "Disable the factory radar and enable openpilot longitudinal control",
+                                           "../assets/offroad/icon_road.png"
+                                            ));
+  toggles_list->addWidget(horizontal_line());
+  toggles_list->addWidget(new ParamsToggle("IsUploadRawEnabled",
+                                           "Enable Uploads Besides Qlog",
+                                           "Enables uploading rlogs and rear camera files (and front camera if enabled)",
+                                           "../assets/offroad/icon_network.png"
+                                            ));
+  toggles_list->addWidget(horizontal_line());
+  toggles_list->addWidget(new ParamsToggle("DisableUpdates",
+                                           "Disable Auto Updates",
+                                           "Disables automatic updates",
+                                           "../assets/offroad/icon_network.png"
+                                            ));
+
+  toggles_list->addWidget(horizontal_line());
   ParamControl *record_toggle = new ParamControl("RecordFront",
                                             "Record and Upload Driver Camera",
                                             "Upload data from the driver facing camera and help improve the driver monitoring algorithm.",
