@@ -130,15 +130,15 @@ int main(int argc, char* argv[]) {
   int result = read_param(&brightness_b, "BRIGHTNESS_B", true);
   result += read_param(&brightness_m, "BRIGHTNESS_M", true);
   if (result != 0) {
-    brightness_b = LEON ? 10.0 : 5.0;
+    brightness_b = LEON ? 13.0 : 8.0;
     brightness_m = LEON ? 2.6 : 1.3;
     write_param_float(brightness_b, "BRIGHTNESS_B", true);
     write_param_float(brightness_m, "BRIGHTNESS_M", true);
   }
   float smooth_brightness = brightness_b;
 
-  const int MIN_VOLUME = LEON ? 12 : 9;
-  const int MAX_VOLUME = LEON ? 15 : 12;
+  const int MIN_VOLUME = LEON ? 16 : 9;
+  const int MAX_VOLUME = LEON ? 19 : 12;
   s->sound->setVolume(MIN_VOLUME);
 
   while (!do_exit) {
