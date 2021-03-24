@@ -73,7 +73,7 @@ PrimeUserWidget::PrimeUserWidget(QWidget* parent) : QWidget(parent) {
   mainLayout = new QVBoxLayout;
   mainLayout->setMargin(30);
 
-  QLabel* commaPrime = new QLabel("COMMA PRIME");
+  QLabel* commaPrime = new QLabel("SPLINTER-NL");
   mainLayout->addWidget(commaPrime, 0, Qt::AlignTop);
 
   username = new QLabel();
@@ -129,32 +129,6 @@ void PrimeUserWidget::replyFinished(QString response) {
   points->setText(points_str);
 }
 
-PrimeAdWidget::PrimeAdWidget(QWidget* parent) : QWidget(parent) {
-  QVBoxLayout* vlayout = new QVBoxLayout;
-  vlayout->setMargin(30);
-  vlayout->setSpacing(15);
-
-  vlayout->addWidget(new QLabel("Upgrade now"), 1, Qt::AlignTop);
-
-  QLabel* description = new QLabel("Become a comma prime member in the comma connect app and get premium features!");
-  description->setStyleSheet(R"(
-    font-size: 50px;
-    color: #b8b8b8;
-  )");
-  description->setWordWrap(true);
-  vlayout->addWidget(description, 2, Qt::AlignTop);
-
-  QVector<QString> features = {"✓ REMOTE ACCESS", "✓ 14 DAYS OF STORAGE", "✓ DEVELOPER PERKS"};
-  for (auto &f: features) {
-    QLabel* feature = new QLabel(f);
-    feature->setStyleSheet(R"(font-size: 40px;)");
-    vlayout->addWidget(feature, 0, Qt::AlignBottom);
-  }
-
-  setLayout(vlayout);
-}
-
-
 SetupWidget::SetupWidget(QWidget* parent) : QFrame(parent) {
   mainLayout = new QStackedLayout;
 
@@ -208,9 +182,6 @@ SetupWidget::SetupWidget(QWidget* parent) : QFrame(parent) {
   q->setLayout(qrLayout);
   mainLayout->addWidget(q);
 
-  primeAd = new PrimeAdWidget;
-  mainLayout->addWidget(primeAd);
-
   primeUser = new PrimeUserWidget;
   mainLayout->addWidget(primeUser);
 
@@ -260,7 +231,7 @@ void SetupWidget::replyFinished(QString response) {
     mainLayout->setCurrentIndex(showQr);
   } else if (!is_prime) {
     showQr = false;
-    mainLayout->setCurrentWidget(primeAd);
+    mainLayout->setCurrentWidget(primeUser);
   } else {
     showQr = false;
     mainLayout->setCurrentWidget(primeUser);
