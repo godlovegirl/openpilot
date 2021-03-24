@@ -151,7 +151,7 @@ class SoftDisableAlert(Alert):
     super().__init__("TAKE CONTROL IMMEDIATELY", alert_text_2,
                      AlertStatus.critical, AlertSize.full,
                      Priority.MID, VisualAlert.steerRequired,
-                     AudibleAlert.chimeWarningRepeat, .1, 2., 2.),
+                     AudibleAlert.chimeWarningRepeat, 1., 2., 2.),
 
 
 class ImmediateDisableAlert(Alert):
@@ -231,10 +231,10 @@ EVENTS: Dict[int, Dict[str, Union[Alert, Callable[[Any, messaging.SubMaster, boo
 
   EventName.startupMaster: {
     ET.PERMANENT: Alert(
-      "WARNING: This branch is not tested",
-      "Always keep hands on wheel and eyes on road",
+      "WARNING: This branch is in test phase",
+      "Be ready to take over at any time",
       AlertStatus.userPrompt, AlertSize.mid,
-      Priority.LOWER, VisualAlert.none, AudibleAlert.none, 0., 0., 15.),
+      Priority.LOWER, VisualAlert.none, AudibleAlert.none, 0., 0., 5.),
   },
 
   EventName.startupNoControl: {
