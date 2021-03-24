@@ -68,8 +68,7 @@ QWidget * toggles_panel() {
                                            "Disables automatic updates",
                                            "../assets/offroad/icon_network.png"
                                             ));
-
-  toggles_list->addWidget(horizontal_line());
+  
   ParamControl *record_toggle = new ParamControl("RecordFront",
                                             "Record and Upload Driver Camera",
                                             "Upload data from the driver facing camera and help improve the driver monitoring algorithm.",
