@@ -35,12 +35,6 @@ private slots:
   void replyFinished(QString response);
 };
 
-class PrimeAdWidget : public QWidget {
-  Q_OBJECT
-public:
-  explicit PrimeAdWidget(QWidget* parent = 0);
-};
-
 class SetupWidget : public QFrame {
   Q_OBJECT
 
@@ -50,7 +44,6 @@ public:
 private:
   QStackedLayout* mainLayout;
   CommaApi* api;
-  PrimeAdWidget *primeAd;
   PrimeUserWidget *primeUser;
   bool showQr = false;
 
